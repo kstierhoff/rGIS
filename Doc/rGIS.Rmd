@@ -29,6 +29,12 @@ library(sf)
 library(cowplot)
 library(here)
 library(knitr)
+library(ggrepel)
+```
+
+```{r CreateMissingDirectories}
+dir.create(here("Figs"))
+dir.create(here("Output"))
 ```
 
 
@@ -46,6 +52,9 @@ mb.long <- c(-122.2, -121.7)
 locations <- read_csv(here("Data/locations.csv")) %>% 
   filter(group %in% c("city", "landmark") )
 ```
+
+# rNaturalEarth
+[](https://www.jessesadler.com/post/gis-with-r-intro/?utm_content=buffer072ae&utm_medium=social&utm_source=twitter.com&utm_campaign=buffer)
 
 # ggmap
 ## Stamen maps
@@ -67,6 +76,11 @@ wc.map.stamen.toner +
   geom_point(data = locations, aes(long, lat)) +
   geom_text(data = locations, aes(long, lat, label = name), 
             colour = "red", size = 2, hjust = 0, nudge_x = 0.5, angle = 45)
+
+wc.map.stamen.toner + 
+  geom_point(data = locations, aes(long, lat)) +
+  geom_text_repel(data = locations, aes(long, lat, label = name), 
+            colour = "red", size = 2, segment.colour = "black", segment.alpha = 0.5)
 
 # Save map
 ggsave(filename = "../Figs/wc_map_stamen_toner.png", width = 4, height = 7)
