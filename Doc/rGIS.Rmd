@@ -1,12 +1,16 @@
 ---
 title: "rGIS"
 author: "Kevin Stierhoff"
-output: 
-  html_notebook:
+output:
+  html_document:
+    df_print: paged
     toc: yes
-editor_options: 
+editor_options:
   chunk_output_type: inline
 ---
+
+# Overview
+I know I billed this as "Ditching ArcGIS" in the poll, but I 1) am not an ArcGIS expert and 2) there may still be things that you must do in ArcGIS to get your work done. If that's the case, there is the [R - ArcGIS Bridge](https://r-arcgis.github.io/) that makes it possible for these two analysis tools to play with one another, BUT I won't discuss that here...
 
 # Configure chunk options
 
@@ -21,6 +25,7 @@ if (.Platform$OS.type == "unix") {
 ```
 
 # Load libraries
+You may need to install some packages (and their dependencies) that you don't already have.
 
 ```{r LoadLibraries}
 library(tidyverse)
@@ -59,69 +64,99 @@ locations <- read_csv(here("Data/locations.csv")) %>%
 # ggmap
 ## Stamen maps
 
-```{r ggmapStamen, out.width='6in'}
+```{r ggmapStamen, out.width='100%'}
 # Set west coast boundaries for stamen maps
-wc.stamen <- c(left = min(wc.long), bottom = min(wc.lat), 
+wc.bounds.stamen <- c(left = min(wc.long), bottom = min(wc.lat), 
                right = max(wc.long), top = max(wc.lat))
 # Download stamen map of west coast
-wc.map.stamen.toner <- get_stamenmap(wc.stamen, zoom = 6, maptype = "toner-lite") %>% 
+wc.map.stamen.toner <- get_stamenmap(wc.bounds.stamen, zoom = 6, maptype = "toner-lite") %>% 
   ggmap() + xlab("Longitude") + ylab("Latitude") + theme_bw()
 
 # Add layers to map
-wc.map.stamen.toner + 
+wc.stamen1 <- wc.map.stamen.toner + 
   geom_point(data = locations, aes(long, lat)) +
-  geom_text(data = locations, aes(long, lat, label = name))
+  geom_text(data = locations, aes(long, lat, label = name)) + 
+  ggtitle("Basic options")
 
-wc.map.stamen.toner + 
+wc.stamen2 <- wc.map.stamen.toner + 
   geom_point(data = locations, aes(long, lat)) +
   geom_text(data = locations, aes(long, lat, label = name), 
-            colour = "red", size = 2, hjust = 0, nudge_x = 0.5, angle = 45)
+            colour = "red", size = 2, hjust = 0, nudge_x = 0.5, angle = 45) + 
+  ggtitle("Formatted labels")
 
-wc.map.stamen.toner + 
+wc.stamen3 <- wc.map.stamen.toner + 
   geom_point(data = locations, aes(long, lat)) +
   geom_text_repel(data = locations, aes(long, lat, label = name), 
-            colour = "red", size = 2, segment.colour = "black", segment.alpha = 0.5)
+            colour = "red", size = 2, segment.colour = "black", segment.alpha = 0.5) +
+  ggtitle("Formatted and repelled lables")
+
+# Combine maps
+wc.grid.stamen <- plot_grid(wc.stamen1, wc.stamen2, wc.stamen3, nrow = 1)
 
 # Save map
-ggsave(filename = "../Figs/wc_map_stamen_toner.png", width = 4, height = 7)
+ggsave(wc.grid.stamen, filename = here("Figs/wc_map_stamen_toner.png"), width = 12, height = 7)
 # Print map
-include_graphics("../Figs/wc_map_stamen_toner.png")
+include_graphics(here("Figs/wc_map_stamen_toner.png"))
 ```
 
 ## Google maps
 
-```{r ggmapGoogleMapsWC}
+```{r ggmapGoogleMapsWC,out.width='100%'}
 # Set west coast boundaries for stamen maps
-wc.google <- c(mean(wc.long),mean(wc.lat))
+wc.bounds.google <- c(mean(wc.long),mean(wc.lat))
 # Download stamen map of west coast
-wc.map.google <- get_map(location = wc.google, zoom = 4, source = "google", maptype = "satellite") %>% 
+wc.map.google <- get_map(location = wc.bounds.google, zoom = 4, source = "google", maptype = "satellite") %>% 
   ggmap() + xlab("Longitude") + ylab("Latitude") + theme_bw() +
   xlim(wc.long) + ylim(wc.lat)
 
-wc.map.google +
+wc.google1 <- wc.map.google +
  geom_point(data = locations, aes(long, lat), colour = "white") +
   geom_text(data = locations, aes(long, lat, label = name), 
-            colour = "white", size = 2, hjust = 0, nudge_x = 0.5, angle = 45)
+            colour = "white", size = 2, hjust = 0, nudge_x = 0.5, angle = 45) +
+  ggtitle("Minor formatting")
+
+wc.google2 <- wc.map.google +
+ geom_point(data = locations, aes(long, lat), colour = "white") +
+  geom_text_repel(data = locations, aes(long, lat, label = name), 
+            colour = "white", size = 2) +
+  ggtitle("Repelled labels")
+
+# Arrange plots
+wc.grid.google <- plot_grid(wc.google1, wc.google2, nrow = 1)
+
 # Save map
-ggsave(filename = "../Figs/wc_map_google.png", width = 4, height = 7)
+ggsave(wc.grid.google, filename = here("Figs/wc_map_google.png"), width = 8, height = 7)
 # Print map
-include_graphics("../Figs/wc_map_google.png")
+include_graphics(here("Figs/wc_map_google.png"))
 ```
 
-```{r ggmapGoogleMapsMB}
+```{r ggmapGoogleMapsMB,out.width='100%'}
 # Set west coast boundaries for stamen maps
-mb.google <- c(mean(mb.long),mean(mb.lat))
+mb.bounds.google <- c(mean(mb.long),mean(mb.lat))
 # Download stamen map of west coast
-mb.map.google <- get_map(location = mb.google, zoom = 10, source = "google", maptype = "satellite") %>% 
+mb.map.google <- get_map(location = mb.bounds.google, zoom = 10, 
+                         source = "google", maptype = "satellite") %>% 
   ggmap() + xlab("Longitude") + ylab("Latitude") + theme_bw() +
   xlim(mb.long) + ylim(mb.lat)
 
-mb.map.google +
- geom_point(data = locations, aes(long, lat), colour = "white") +
-  geom_text(data = locations, aes(long, lat, label = name), 
+mb.google1 <- mb.map.google +
+ geom_point(data = filter(locations, name != "Monterey Bay"), aes(long, lat), colour = "white") +
+  geom_text(data = filter(locations, name != "Monterey Bay"), aes(long, lat, label = name), 
             colour = "white", size = 4, vjust = 0, nudge_y = 0.01)
 # Save map
-ggsave(filename = "../Figs/mb_map_google.png", width = 7, height = 7)
+ggsave(filename = here("Figs/mb_map_google.png"), width = 7, height = 7)
 # Print map
-include_graphics("../Figs/mb_map_google.png")
+include_graphics(here("Figs/mb_map_google.png"))
 ```
+
+# Data packages
+## elevatr
+[](https://github.com/usepa/elevatr)
+
+## FedData
+[FedData Github repo](https://github.com/ropensci/FedData)
+[FedData Tutorial](http://zevross.com/blog/2016/03/15/using-the-new-r-package-feddata-to-access-federal-open-datasets-including-interactive-graphics/)
+
+# Other potentially useful packages
+## Movement analysis
+[A collection of movement analysis packages](https://gist.github.com/mdsumner/0a3cb0e58bf9d37b782943ac269e1eff)
