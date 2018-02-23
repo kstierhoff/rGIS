@@ -160,3 +160,10 @@ include_graphics(here("Figs/mb_map_google.png"))
 # Other potentially useful packages
 ## Movement analysis
 [A collection of movement analysis packages](https://gist.github.com/mdsumner/0a3cb0e58bf9d37b782943ac269e1eff)
+
+# More R-GIS resources
+[Simple Feaures for R](https://r-spatial.github.io/sf/): Blogs, presentations, vignettes for the sf package 
+
+[A Tidy Approach to Spatial Data: Simple Features](https://eriqande.github.io/rep-res-eeb-2017/a-tidy-approach-to-spatial-data-simple-features.html) from our own Eric Anderson
+
+[GIS with R: an introduction](https://github.com/Pakillo/GISwithR) by Francisco Rodriguez-Sanchez (Pakillo)
