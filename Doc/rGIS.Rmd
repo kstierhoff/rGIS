@@ -35,6 +35,8 @@ library(cowplot)
 library(here)
 library(knitr)
 library(ggrepel)
+library(rnaturalearth)
+library(rgeos)
 ```
 
 ```{r CreateMissingDirectories}
@@ -46,7 +48,7 @@ dir.create(here("Output"))
 # Set map boundaries
 ```{r MapBounds}
 # Define lat and long bounds for west coast map
-wc.lat <- c(30, 52)
+wc.lat <- c(32, 52)
 wc.long <- c(-130, -116)
 
 # Define lat and long bounds for Monterey Bay
@@ -57,9 +59,6 @@ mb.long <- c(-122.2, -121.7)
 locations <- read_csv(here("Data/locations.csv")) %>% 
   filter(group %in% c("city", "landmark") )
 ```
-
-# rNaturalEarth
-[](https://www.jessesadler.com/post/gis-with-r-intro/?utm_content=buffer072ae&utm_medium=social&utm_source=twitter.com&utm_campaign=buffer)
 
 # ggmap
 ## Stamen maps
@@ -87,7 +86,7 @@ wc.stamen2 <- wc.map.stamen.toner +
 wc.stamen3 <- wc.map.stamen.toner + 
   geom_point(data = locations, aes(long, lat)) +
   geom_text_repel(data = locations, aes(long, lat, label = name), 
-            colour = "red", size = 2, segment.colour = "black", segment.alpha = 0.5) +
+            size = 2, segment.colour = "black", segment.alpha = 0.5) +
   ggtitle("Formatted and repelled lables")
 
 # Combine maps
@@ -147,6 +146,54 @@ mb.google1 <- mb.map.google +
 ggsave(filename = here("Figs/mb_map_google.png"), width = 7, height = 7)
 # Print map
 include_graphics(here("Figs/mb_map_google.png"))
+```  
+
+# rnaturalearth  
+
+[rnaturalearth](https://www.jessesadler.com/post/gis-with-r-intro/?utm_content=buffer072ae&utm_medium=social&utm_source=twitter.com&utm_campaign=buffer) for shoreline and country files.
+
+```{r rnaturalearth}
+# Import NaturalEarth coastlines and countries
+coast_sf <- ne_coastline(scale = "medium", returnclass = "sf")
+coast_sf_lg <- ne_coastline(scale = "large", returnclass = "sf")
+countries_sf <- ne_countries(scale = "medium", returnclass = "sf")
+countries_sf_lg <- ne_countries(scale = "large", returnclass = "sf")
+
+# View unique regions
+# sort(unique(countries_sf$region_wb))
+# sort(unique(countries_sf$subregion))
+
+# Select only certain regions to speed plotting
+na_sf <- filter(countries_sf, subregion %in% c("Northern America","Central America")) 
+na_sf_lg <- filter(countries_sf_lg, subregion %in% c("Northern America","Central America")) 
+
+# Create West Coast map (medium scale)
+wc.ne <- ggplot() + geom_sf(data = na_sf) +
+  geom_point(data = locations, aes(long, lat)) +
+  geom_text_repel(data = locations, aes(long, lat, label = name), 
+                  size = 2, segment.colour = "black", segment.alpha = 0.5) +
+  scale_x_continuous(name = "Longitude", limits = wc.long) + 
+  scale_y_continuous(name = "Latitude", limits = wc.lat) +
+  theme_bw() + coord_sf() +
+  ggtitle("Medium scale")
+
+# Create West Coast map (large scale)
+wc.ne.lg <- ggplot() + geom_sf(data = na_sf_lg) +
+  geom_point(data = locations, aes(long, lat)) +
+  geom_text_repel(data = locations, aes(long, lat, label = name), 
+                  size = 2, segment.colour = "black", segment.alpha = 0.5) +
+  scale_x_continuous(name = "Longitude", limits = wc.long) + 
+  scale_y_continuous(name = "Latitude", limits = wc.lat) +
+  theme_bw() + coord_sf() +
+  ggtitle("Large scale")
+
+# Create map grid
+wc.grid.ne <- plot_grid(wc.ne, wc.ne.lg, nrow = 1)
+
+# Save map
+ggsave(wc.grid.ne, filename = here("Figs/wc_map_natEarth.png"), width = 8, height = 7)
+# Print map
+include_graphics(here("Figs/wc_map_natEarth.png"))
 ```
 
 # Data packages
@@ -154,7 +201,8 @@ include_graphics(here("Figs/mb_map_google.png"))
 [](https://github.com/usepa/elevatr)
 
 ## FedData
-[FedData Github repo](https://github.com/ropensci/FedData)
+[FedData Github repo](https://github.com/ropensci/FedData)  
+
 [FedData Tutorial](http://zevross.com/blog/2016/03/15/using-the-new-r-package-feddata-to-access-federal-open-datasets-including-interactive-graphics/)
 
 # Other potentially useful packages
@@ -167,3 +215,5 @@ include_graphics(here("Figs/mb_map_google.png"))
 [A Tidy Approach to Spatial Data: Simple Features](https://eriqande.github.io/rep-res-eeb-2017/a-tidy-approach-to-spatial-data-simple-features.html) from our own Eric Anderson
 
 [GIS with R: an introduction](https://github.com/Pakillo/GISwithR) by Francisco Rodriguez-Sanchez (Pakillo)
+
+[An Intro to GIS with R](https://www.jessesadler.com/post/gis-with-r-intro/) by Jess Sadler (covers `sp`, `sf`, and `rnaturalearth`, among other things).
