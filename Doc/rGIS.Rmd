@@ -30,7 +30,8 @@ You may need to install some packages (and their dependencies) that you don't al
 ```{r LoadLibraries}
 # List packages required to run the script -------------------------------------
 pkgs <- c("tidyverse","ggmap","sf","cowplot","here",
-          "knitr","ggrepel","rnaturalearth","rgeos")
+          "knitr","ggrepel","rnaturalearth","rgeos",
+          "FedData","raster")
 # Install and load all CRAN packages provided from a character vector
 load_pkgs = function(pkgs) {
   new_pkgs = pkgs[!(pkgs %in% installed.packages()[ ,'Package'])]
@@ -206,9 +207,43 @@ The [elevatr](https://github.com/usepa/elevatr) package provides easy access to 
 
 ## FedData  
 
-[FedData Github repo](https://github.com/ropensci/FedData)  
+[FedData Github repo](https://github.com/ropensci/FedData) and tutorial with examples of various data sources (e.g., .
 
 [FedData Tutorial](http://zevross.com/blog/2016/03/15/using-the-new-r-package-feddata-to-access-federal-open-datasets-including-interactive-graphics/)
+
+Presently not executed; still under development
+
+```{r FedDataExample,eval=F}
+# Get a map of Moss Landing
+ML.bbox <- get_map("Moss Landing, CA", zoom = 14) 
+# Plot the map
+ggmap(ML.bbox) 
+# Get the bounding box from its attributes
+bb <- attr(ML.bbox, "bb")
+# Create an extent polygon from the Monterey Bay bounding box
+ML.extent <- polygon_from_extent(raster::extent(bb$ll.lon, bb$ur.lon,
+                                            bb$ll.lat, bb$ur.lat), 
+                             proj4string="+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs")
+# Map the bounding box to check the results
+ggmap(ML.bbox) + geom_polygon(aes(x=long, y=lat), size=3, color='purple',
+                             data=ML.extent, fill=NA)
+# Download National Elevation Data
+ned_ML <- get_ned(template = ML.extent, label="ned_ML", 
+                    res="1", force.redo = F, raw.dir = here("Data"))
+# Convert raster to data frame for plotting in ggplot
+ned_df <- rasterToPoints(ned_ML) %>% 
+  data.frame() %>% 
+  rename(lat = y,
+         long = x,
+         elev = grdn37w122_1)
+
+# Map elevation
+ggplot(ned_df, aes(long,lat,fill = elev)) + geom_raster() +
+  geom_contour(aes(z = elev), alpha = 0.5, binwidth = 1) + 
+  scale_fill_viridis_c(name = "Elevation (m)") +
+  theme_bw()
+```
+
 
 # Other potentially useful packages
 ## Movement analysis
