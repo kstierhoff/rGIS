@@ -28,15 +28,18 @@ if (.Platform$OS.type == "unix") {
 You may need to install some packages (and their dependencies) that you don't already have.
 
 ```{r LoadLibraries}
-library(tidyverse)
-library(ggmap)
-library(sf)
-library(cowplot)
-library(here)
-library(knitr)
-library(ggrepel)
-library(rnaturalearth)
-library(rgeos)
+# List packages required to run the script -------------------------------------
+pkgs <- c("tidyverse","ggmap","sf","cowplot","here",
+          "knitr","ggrepel","rnaturalearth","rgeos")
+# Install and load all CRAN packages provided from a character vector
+load_pkgs = function(pkgs) {
+  new_pkgs = pkgs[!(pkgs %in% installed.packages()[ ,'Package'])]
+  if (length(new_pkgs) > 0) install.packages(new_pkgs,repos = "http://cran.cnr.berkeley.edu/")
+  invisible(lapply(pkgs,function(x)
+    suppressPackageStartupMessages(library(x,character.only = T))))
+}
+# Load packages
+load_pkgs(pkgs)
 ```
 
 ```{r CreateMissingDirectories}
@@ -197,10 +200,12 @@ include_graphics(here("Figs/wc_map_natEarth.png"))
 ```
 
 # Data packages
-## elevatr
-[](https://github.com/usepa/elevatr)
+## elevatr  
 
-## FedData
+The [elevatr](https://github.com/usepa/elevatr) package provides easy access to elevation data from a variety of sources.
+
+## FedData  
+
 [FedData Github repo](https://github.com/ropensci/FedData)  
 
 [FedData Tutorial](http://zevross.com/blog/2016/03/15/using-the-new-r-package-feddata-to-access-federal-open-datasets-including-interactive-graphics/)
