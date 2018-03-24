@@ -31,7 +31,7 @@ You may need to install some packages (and their dependencies) that you don't al
 # List packages required to run the script -------------------------------------
 pkgs <- c("tidyverse","ggmap","sf","cowplot","here",
           "knitr","ggrepel","rnaturalearth","rgeos",
-          "FedData","raster")
+          "FedData","raster","mapview")
 # Install and load all CRAN packages provided from a character vector
 load_pkgs = function(pkgs) {
   new_pkgs = pkgs[!(pkgs %in% installed.packages()[ ,'Package'])]
@@ -69,9 +69,9 @@ ggplot(cps, aes(long, lat)) + geom_point()
 ```
 
 # A slightly less basic map
-Let's set a few parameters to make the map more spatially accurate.
+Let's set a few parameters to make the map more spatially accurate. But it's a long way from a useful "map"...
 
-```{r}
+```{r LessBasicMap}
 # Add some more aesthetics and coordinate controls, maybe some labels
 
 # Read locations
@@ -80,56 +80,70 @@ locations <- read_csv(here("Data/locations.csv")) %>%
 
 # Refine the "map"
 ggplot(cps, aes(long, lat)) + 
-  # geom_point() +
-  geom_path(aes(group = transect, colour = factor(transect))) +
-  geom_point(aes(group = transect, colour = factor(transect), size = cps.nasc)) +
-  geom_point(data = locations, aes(long, lat)) +
-  geom_text(data = locations, aes(long, lat, label = name)) +
-  # coord_quickmap() +
+  geom_point() +
+  # geom_path(aes(group = transect, colour = factor(transect))) +
+  # geom_point(aes(group = transect, colour = factor(transect), size = cps.nasc)) +
+  # geom_point(data = locations, aes(long, lat)) +
+  # geom_text(data = locations, aes(long, lat, label = name)) +
+  coord_quickmap() +
   # coord_map(projection = 'azequalarea') +
-  coord_map(projection = 'azequalarea', xlim = c(-128,-123), ylim = c(45,50)) +
+  # coord_map(projection = 'azequalarea', xlim = c(-128,-123), ylim = c(45,50)) +
   theme_bw()
 ```
 
+# Canned mapping options
+Before we go farther, let's set some map boundaries based on either our data (`cps$lat` and `cps.long`) or manually (`mb.lat` and `mb.long`).  
 
-# Set map boundaries
-```{r MapBounds}
+```{r StamenBounds}
 # Define lat and long bounds for west coast map
-wc.lat <- c(32, 52)
-wc.long <- c(-130, -116)
+wc.lat  <- range(cps$lat)  #c(32, 52)
+wc.long <- range(cps$long) #c(-130, -116)
 
 # Define lat and long bounds for Monterey Bay
-mb.lat <- c(36.5, 37)
+mb.lat  <- c(36.5, 37)
 mb.long <- c(-122.2, -121.7)
 ```
 
-# ggmap
-## Stamen maps
+## ggmap
+ggmap is a mashup of ggplot and online mapping services. There are numerous map sources available to ggmap (e.g., Google, OpenStreetMaps, Stamen). We'll look quickly at Stamen and Google maps. Withing each of those, there are multiple options (e.g., Google has satellite, terrain, etc.). Each has different arguments to specify the map boundaries.
 
-```{r ggmapStamen, out.width='100%'}
+### Stamen maps
+Create a basic Stamen map (Toner option). Look, a map (with no data)!
+
+```{r ggmapStamenBase, out.width='100%'}
 # Set west coast boundaries for stamen maps
 wc.bounds.stamen <- c(left = min(wc.long), bottom = min(wc.lat), 
                right = max(wc.long), top = max(wc.lat))
 # Download stamen map of west coast
 wc.map.stamen.toner <- get_stamenmap(wc.bounds.stamen, zoom = 6, maptype = "toner-lite") %>% 
   ggmap() + xlab("Longitude") + ylab("Latitude") + theme_bw()
+```  
 
+Add our data to the map. Look, a map (with data)!
+
+```{r ggmapStamenCps}
 # Add layers to map
 wc.stamen1 <- wc.map.stamen.toner + 
   geom_point(data = locations, aes(long, lat)) +
   geom_text(data = locations, aes(long, lat, label = name)) + 
+  geom_path(data = cps, aes(long, lat, group = transect, colour = factor(transect)),
+            show.legend = F) +
   ggtitle("Basic options")
 
 wc.stamen2 <- wc.map.stamen.toner + 
   geom_point(data = locations, aes(long, lat)) +
   geom_text(data = locations, aes(long, lat, label = name), 
             colour = "red", size = 2, hjust = 0, nudge_x = 0.5, angle = 45) + 
+  geom_path(data = cps, aes(long, lat, group = transect, colour = factor(transect)),
+            show.legend = F) +
   ggtitle("Formatted labels")
 
 wc.stamen3 <- wc.map.stamen.toner + 
   geom_point(data = locations, aes(long, lat)) +
   geom_text_repel(data = locations, aes(long, lat, label = name), 
             size = 2, segment.colour = "black", segment.alpha = 0.5) +
+  geom_path(data = cps, aes(long, lat, group = transect, colour = factor(transect)),
+            show.legend = F) +
   ggtitle("Formatted and repelled lables")
 
 # Combine maps
@@ -240,13 +254,11 @@ include_graphics(here("Figs/wc_map_natEarth.png"))
 ```
 
 # Leaflet and mapview
-```{r}
+```{r Mapview, eval = F}
 mapview(ca_waters, alpha.regions = 0.1) +
   mapview(ca_mpas,zcol = "Type") +
   mapview(nasc.sf, cex = "bin.level", color = nascPal, alpha = 0.5)
 ```
-
-
 
 # GIS tasks using the `sf` package
 ### Merge
