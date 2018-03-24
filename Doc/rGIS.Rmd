@@ -25,7 +25,7 @@ if (.Platform$OS.type == "unix") {
 ```
 
 # Load libraries
-You may need to install some packages (and their dependencies) that you don't already have.
+You may need to install some packages (and their dependencies) that you don't already have. The chunk below will do that for you automatically using the `load_pkgs` function.
 
 ```{r LoadLibraries}
 # List packages required to run the script -------------------------------------
@@ -48,6 +48,49 @@ dir.create(here("Figs"))
 dir.create(here("Output"))
 ```
 
+# A VERY basic map
+## Map with base graphics
+Let's create a very basic "map", showing the location of acoustic samples along the West Coast. The first uses base graphics (yuck!).
+
+```{r BasicMap}
+# Load some ship track data
+cps <- read_csv(here("Data/cps_nav.csv"))
+
+# A basic 
+plot(cps$long, cps$lat)
+```
+
+## Map using ggplot2
+Here are the same data plotted using ggplot2.
+
+```{r BasicGgplotMap}
+# A very basic ggplot2 scatter plot of the same data
+ggplot(cps, aes(long, lat)) + geom_point()
+```
+
+# A slightly less basic map
+Let's set a few parameters to make the map more spatially accurate.
+
+```{r}
+# Add some more aesthetics and coordinate controls, maybe some labels
+
+# Read locations
+locations <- read_csv(here("Data/locations.csv")) %>% 
+  filter(group %in% c("city", "landmark") )
+
+# Refine the "map"
+ggplot(cps, aes(long, lat)) + 
+  # geom_point() +
+  geom_path(aes(group = transect, colour = factor(transect))) +
+  geom_point(aes(group = transect, colour = factor(transect), size = cps.nasc)) +
+  geom_point(data = locations, aes(long, lat)) +
+  geom_text(data = locations, aes(long, lat, label = name)) +
+  # coord_quickmap() +
+  # coord_map(projection = 'azequalarea') +
+  coord_map(projection = 'azequalarea', xlim = c(-128,-123), ylim = c(45,50)) +
+  theme_bw()
+```
+
 
 # Set map boundaries
 ```{r MapBounds}
@@ -58,10 +101,6 @@ wc.long <- c(-130, -116)
 # Define lat and long bounds for Monterey Bay
 mb.lat <- c(36.5, 37)
 mb.long <- c(-122.2, -121.7)
-
-# Read locations
-locations <- read_csv(here("Data/locations.csv")) %>% 
-  filter(group %in% c("city", "landmark") )
 ```
 
 # ggmap
@@ -200,6 +239,15 @@ ggsave(wc.grid.ne, filename = here("Figs/wc_map_natEarth.png"), width = 8, heigh
 include_graphics(here("Figs/wc_map_natEarth.png"))
 ```
 
+# Leaflet and mapview
+```{r}
+mapview(ca_waters, alpha.regions = 0.1) +
+  mapview(ca_mpas,zcol = "Type") +
+  mapview(nasc.sf, cex = "bin.level", color = nascPal, alpha = 0.5)
+```
+
+
+
 # GIS tasks using the `sf` package
 ### Merge
 ### Buffer
@@ -207,6 +255,9 @@ include_graphics(here("Figs/wc_map_natEarth.png"))
 ### etc.
 
 # Data packages
+# tigris
+Access to the TIGER/U.S. Census line data files
+
 ## elevatr  
 
 The [elevatr](https://github.com/usepa/elevatr) package provides easy access to elevation data from a variety of sources. Not fully functional at the moment...
@@ -263,9 +314,3 @@ ggplot(ned_df, aes(long,lat,fill = elev)) + geom_raster() +
 [GIS with R: an introduction](https://github.com/Pakillo/GISwithR) by Francisco Rodriguez-Sanchez (Pakillo)
 
 [An Intro to GIS with R](https://www.jessesadler.com/post/gis-with-r-intro/) by Jess Sadler (covers `sp`, `sf`, and `rnaturalearth`, among other things).
-
-# R-spatial folks on Twitter
-
-Edzer Pebesma (@edzerpebesma; author of the `sf` package)
-
-Michael Sumner (@mdsumner)
