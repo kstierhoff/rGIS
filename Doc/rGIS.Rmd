@@ -32,7 +32,8 @@ You may need to install some packages (and their dependencies) that you don't al
 # List packages required to run the script -------------------------------------
 pkgs <- c("tidyverse","ggmap","sf","cowplot","here","devtools",
           "knitr","ggrepel","rgeos","FedData","raster","mapview",
-          "rnaturalearth","rnaturalearthdata","shadowtext")
+          "rnaturalearth","rnaturalearthdata","shadowtext","leaflet",
+          "leaflet.extras","htmltools")
 # Install and load all CRAN packages provided from a character vector
 load_pkgs = function(pkgs) {
   new_pkgs = pkgs[!(pkgs %in% installed.packages()[ ,'Package'])]
@@ -311,28 +312,171 @@ ggsave(wc.grid.ne, filename = here("Figs/wc_map_natEarth.png"), width = 8, heigh
 include_graphics(here("Figs/wc_map_natEarth.png"))
 ```
 
-# Leaflet and mapview
-```{r Mapview, eval = F}
-mapview(ca_waters, alpha.regions = 0.1) +
-  mapview(ca_mpas,zcol = "Type") +
-  mapview(nasc.sf, cex = "bin.level", color = nascPal, alpha = 0.5)
+# Interactive maps
+## Leaflet
+Leaflet is an open-source JavaScript library for creating interactive maps. The [Leaflet for R](https://rstudio.github.io/leaflet/) site is indispensible for creating these maps. We'll show `mapview` below once we've converted the data to a spatial object (`sf` in this case).
+
+```{r Leaflet}
+# Select tile to use for Leaflet map
+# Some good options include CartoDB.Positron, Stamen.Terrain, Esri.WorldImagery
+leaflet.tile <- "Stamen.Terrain" 
+
+# A very basic Leaflet map
+leaflet() %>% 
+  # addTiles() %>% 
+  addProviderTiles(leaflet.tile) %>% 
+  addMarkers(data = locations, ~long, ~lat, popup = ~as.character(name), label = ~as.character(name))
 ```
 
 # GIS tasks using the `sf` package
-### Merge
-### Buffer
-### Compute area
-### etc.
+I recently (and fortuitously) had a real-life GIS problem that I needed to solve. Every three years, we must renew our CDFW Scientific Collection Permit, and to do so, we must identify how many trawls we conducted in CA State waters, and how many we did in MPAs (if any). Below are the steps I took to automate this process (data processing steps not shown).
+ 
+## Reading shapefiles
+I have some shapefiles of the CA state waters and CA marine protected areas (MPAs). I need to read them for plotting later. You often must know the datum and/or projection. These can be defined using proj4 (I'm not going to talk about this) or the European Petroleum Survey Group (EPSG) or coordinate reference system (CRS) codes. You can search for these codes at the [Spatial Reference List](http://spatialreference.org/ref/). Some commonly used ones are `4326` for WGS84 (for GPS data) and NAD83 (4269, for natural earth). You may want more spatially conservative projections for small scales or where preserving spatial accuracy is critical.
+
+```{r ReadSomeShapefiles}
+# Get map data
+  na_sf <- ne_countries(scale = "large", returnclass = "sf") %>%
+    filter(name %in% c("United States", "Mexico", "Canada")) %>% 
+    st_transform(4269) # NAD83
+  
+  # Get CA State Waters shapefile
+  ca_waters <- st_read(here("GIS/MAN_CA_StateWater.shp")) %>% 
+    st_transform(4326) # WGS84
+  
+  # CA MPAs
+  ca_mpas <- st_read(here("GIS/MPA_CA_Existing.shp")) %>% 
+    st_transform(4326) %>% 
+    mutate(MPA = paste(NAME, Type))
+```
+
+## Converting data frames to simple features
+
+We want (need?) to load the haul locations and convert to simple feature before doing GIS stuff.
+
+```{r ConvertSomeDataFrames}
+load(here("Data/haul_df.Rdata"))
+
+# Convert to sf; CRS =4326 (WGS84)
+haul_sf <- st_as_sf(haul, coords = c("long","lat"), crs = 4326) %>% 
+  mutate(long = map_dbl(geometry, ~st_centroid(.x)[[1]]),
+         lat  = map_dbl(geometry, ~st_centroid(.x)[[2]]))
+
+# We'll also convert our locations to sf
+locations <- locations %>% 
+  st_as_sf(coords = c("long","lat"), crs = 4269) %>% 
+  mutate(
+    long = map_dbl(geometry, ~st_centroid(.x)[[1]]),
+    lat  = map_dbl(geometry, ~st_centroid(.x)[[2]]))
+```
+
+## Create a static base map
+
+```{r TrawlGgplotMap}
+# Set padding around data  
+  bbox.loc <- st_bbox(haul_sf)
+  
+  # Create base map
+  base.map <- ggplot() +
+    # Plot high-res land polygons
+    geom_sf(data = na_sf, fill = "white", color = "tan4") +
+    # Plot landmarks
+    geom_sf(data = locations, size = 2, colour = 'tan4') +
+    geom_shadowtext(data  = locations, aes(long, lat, label = name), colour = 'gray20', size = 2,
+              fontface = 'bold', hjust = 0, nudge_x = 0.2, nudge_y = 0.05, 
+              angle = 25, bg.color = "white") +
+    # Format axes and titles
+    xlab("Longitude") + ylab("Latitude") + 
+    coord_sf(
+      xlim = c(bbox.loc$xmin,bbox.loc$xmax),
+      ylim = c(bbox.loc$ymin,bbox.loc$ymax)) +
+    theme_bw() + 
+    theme(axis.text.y = element_text(angle = 90, hjust = 0.5),
+          legend.position =  c(0,0),
+          legend.justification = c(0,0),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          panel.background = element_rect(fill = alpha("lightblue", 0.5)),
+          plot.title = element_text(hjust = 0.5),
+          panel.grid.major = element_line(color = "white"))
+```
+
+## Add some data to the base map
+Let's add our CA state waters and MPAs to the map, along with our trawl haul data.
+
+```{r BaseMapWithData}
+# Add CA state waters layer
+haul.map <- base.map + 
+  geom_sf(data = ca_waters, colour = "red", fill = NA) +
+  geom_sf(data = ca_mpas, aes(fill = Type), colour = "gray50") +
+  geom_sf(data = haul_sf, colour = "blue", shape = 21) +
+  coord_sf(
+      xlim = c(bbox.loc$xmin,bbox.loc$xmax),
+      ylim = c(bbox.loc$ymin,bbox.loc$ymax))
+```
+
+## Find an intersection
+
+```{r HaulIntersection}
+# Find hauls in CA waters
+haul.ca <- st_intersection(haul_sf, ca_waters)
+
+haul.mpa <- st_intersection(haul_sf, ca_mpas) %>% 
+  mutate(key = paste(cruise, ship, haul, collection))
+```
+
+## Intersection results; static map
+Add the results of the intersection to the map.
+
+```{r HaulIntersectionStatic}
+haul.map + 
+  geom_sf(data = haul.ca, colour = "green") +
+  geom_sf(data = haul.mpa, colour = "yellow") +
+    coord_sf(
+      xlim = c(bbox.loc$xmin,bbox.loc$xmax),
+      ylim = c(bbox.loc$ymin,bbox.loc$ymax))
+```
+
+## Intersection results: Leaflet
+
+```{r HaulIntersectionLeaflet}
+# Configure palette for MPAs
+factpal <- colorFactor(topo.colors(10), ca_mpas$MPA)
+
+haul.out <- filter(haul, !key %in% haul.ca$key)
+
+# Create leaflet map
+leaflet() %>% 
+  addProviderTiles(leaflet.tile) %>% 
+  addPolygons(data = ca_waters, weight = 2, fillColor = "transparent") %>% 
+  addPolygons(data = ca_mpas, color = "gray50", weight = 2, fillColor =  ~factpal(MPA), fillOpacity = 1,
+              label = ~htmlEscape(MPA)) %>% 
+  addCircleMarkers(data = haul.out, radius = 3, color = "gray50", stroke = FALSE, fillOpacity = 0.75,
+                   label = ~htmlEscape(key)) %>% 
+  addCircleMarkers(data = haul.ca,  radius = 5, color = "red", stroke = FALSE, fillOpacity = 0.75,
+                   label = ~htmlEscape(key)) %>% 
+  addMarkers(data = haul.mpa, popup = ~key, label = ~htmlEscape(key))
+```
+
+## Intersection results: Mapview
+
+```{r HaulIntersectionMapview}
+mapview(ca_waters) +
+  mapview(ca_mpas) +
+  mapview(haul_sf)
+```
 
 # Data packages
 # tigris
-Access to the TIGER/U.S. Census line data files
+
+Access to the TIGER/U.S. Census line data files on [github](https://github.com/walkerke/tigris).
 
 ## elevatr  
 
 The [elevatr](https://github.com/usepa/elevatr) package provides easy access to elevation data from a variety of sources. Not fully functional at the moment...
 
 ## FedData  
+I've not had much time to explore this one.
 
 [FedData Github repo](https://github.com/ropensci/FedData) and tutorial with examples of various data sources (e.g., .
 
