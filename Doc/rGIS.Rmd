@@ -44,6 +44,11 @@ load_pkgs = function(pkgs) {
 # Load packages
 load_pkgs(pkgs)
 
+# Install github version of ggplot2; required for viridis scales and geom_sf
+if (packageVersion("ggplot2") < '2.2.1.9000') {
+  devtools::install_github("tidyverse/ggplot2")
+}
+
 # Load dev packages -------------------------------------------------------
 # Install and load rnaturalearthdata package from github
 if ("rnaturalearthdata" %in% installed.packages()[ ,'Package'] == F) {
@@ -413,6 +418,9 @@ haul.map <- base.map +
   coord_sf(
       xlim = c(bbox.loc$xmin,bbox.loc$xmax),
       ylim = c(bbox.loc$ymin,bbox.loc$ymax))
+
+# Show map
+haul.map
 ```
 
 ## Find an intersection
