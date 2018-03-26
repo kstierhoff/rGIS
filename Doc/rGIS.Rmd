@@ -1,5 +1,5 @@
 ---
-title: "rGIS"
+title: "Geospatial Visualization of Data Using R"
 author: "Kevin Stierhoff"
 output:
   html_document:
