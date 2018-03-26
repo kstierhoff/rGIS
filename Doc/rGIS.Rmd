@@ -10,7 +10,7 @@ editor_options:
 ---
 
 # Overview
-I know I billed this as "Ditching ArcGIS" in the poll, but I 1) am not an ArcGIS expert and 2) there may still be things that you must do in ArcGIS to get your work done. If that's the case, there is the [R - ArcGIS Bridge](https://r-arcgis.github.io/) that makes it possible for these two analysis tools to play with one another, BUT I won't discuss that here...
+I know I billed this as "Ditching ArcGIS" in the poll, but I 1) am not an ArcGIS expert (despite using it for many years) and 2) there may still be things that you must do in ArcGIS to get your work done. If that's the case, there is the [R - ArcGIS Bridge](https://r-arcgis.github.io/) that makes it possible for these two analysis tools to play with one another, BUT I won't discuss that here...
 
 # Configure chunk options
 
@@ -18,20 +18,21 @@ I know I billed this as "Ditching ArcGIS" in the poll, but I 1) am not an ArcGIS
 # Set global knitr chunk options
 if (.Platform$OS.type == "unix") {
   # Do not specify Cairo device for MacOS
-  knitr::opts_chunk$set(warning = F, message = F)
+  knitr::opts_chunk$set(warning = F, message = F, out.width = '100%', fig.align = 'center')
 } else {
-  knitr::opts_chunk$set(warning = F, message = F, dev.args = list(type = "cairo"))
+  knitr::opts_chunk$set(warning = F, message = F, out.width = '100%', fig.align = 'center', 
+                        dev.args = list(type = "cairo"))
 }
 ```
 
 # Load libraries
-You may need to install some packages (and their dependencies) that you don't already have. The chunk below will do that for you automatically using the `load_pkgs` function.
+You may need to install some packages (and their dependencies) that you don't already have. The chunk below will do that for you automatically using the `load_pkgs` function (hopefully you don't mind).
 
 ```{r LoadLibraries}
 # List packages required to run the script -------------------------------------
-pkgs <- c("tidyverse","ggmap","sf","cowplot","here",
-          "knitr","ggrepel","rnaturalearth","rgeos",
-          "FedData","raster","mapview")
+pkgs <- c("tidyverse","ggmap","sf","cowplot","here","devtools",
+          "knitr","ggrepel","rgeos","FedData","raster","mapview",
+          "rnaturalearth","rnaturalearthdata","shadowtext")
 # Install and load all CRAN packages provided from a character vector
 load_pkgs = function(pkgs) {
   new_pkgs = pkgs[!(pkgs %in% installed.packages()[ ,'Package'])]
@@ -41,16 +42,30 @@ load_pkgs = function(pkgs) {
 }
 # Load packages
 load_pkgs(pkgs)
-```
 
-```{r CreateMissingDirectories}
+# Load dev packages -------------------------------------------------------
+# Install and load rnaturalearthdata package from github
+if ("rnaturalearthdata" %in% installed.packages()[ ,'Package'] == F) {
+  devtools::install_github("ropenscilabs/rnaturalearthdata")
+}
+library(rnaturalearthdata)
+
+# Install and load rnaturalearthhires package from ropensci
+if ("rnaturalearthhires" %in% installed.packages()[ ,'Package'] == F) {
+install.packages("rnaturalearthhires",
+                 repos = "http://packages.ropensci.org",
+                 type = "source")
+}
+library(rnaturalearthhires)
+
+# Create output directories if missing
 dir.create(here("Figs"))
 dir.create(here("Output"))
 ```
 
 # A VERY basic map
 ## Map with base graphics
-Let's create a very basic "map", showing the location of acoustic samples along the West Coast. The first uses base graphics (yuck!).
+Let's create a very basic "map", showing the location of acoustic samples along the West Coast. The first uses base graphics (yuck!) and a cartesian coordinate system.
 
 ```{r BasicMap}
 # Load some ship track data
@@ -58,6 +73,8 @@ cps <- read_csv(here("Data/cps_nav.csv"))
 
 # A basic 
 plot(cps$long, cps$lat)
+# plot(cps$long, cps$lat, cex = cps$cps.nasc)
+# plot(cps$long, cps$lat, cex = sqrt(cps$cps.nasc/1000))
 ```
 
 ## Map using ggplot2
@@ -76,17 +93,17 @@ Let's set a few parameters to make the map more spatially accurate. But it's a l
 
 # Read locations
 locations <- read_csv(here("Data/locations.csv")) %>% 
-  filter(group %in% c("city", "landmark") )
+  filter(group %in% c("city", "landmark"))
 
 # Refine the "map"
 ggplot(cps, aes(long, lat)) + 
-  geom_point() +
+  # geom_point() +
   # geom_path(aes(group = transect, colour = factor(transect))) +
-  # geom_point(aes(group = transect, colour = factor(transect), size = cps.nasc)) +
-  # geom_point(data = locations, aes(long, lat)) +
+  geom_point(aes(group = transect, colour = factor(transect), size = cps.nasc)) +
+  geom_point(data = locations, aes(long, lat)) +
   # geom_text(data = locations, aes(long, lat, label = name)) +
-  coord_quickmap() +
-  # coord_map(projection = 'azequalarea') +
+  # coord_quickmap() +
+  coord_map(projection = 'azequalarea') +
   # coord_map(projection = 'azequalarea', xlim = c(-128,-123), ylim = c(45,50)) +
   theme_bw()
 ```
@@ -105,18 +122,20 @@ mb.long <- c(-122.2, -121.7)
 ```
 
 ## ggmap
-ggmap is a mashup of ggplot and online mapping services. There are numerous map sources available to ggmap (e.g., Google, OpenStreetMaps, Stamen). We'll look quickly at Stamen and Google maps. Withing each of those, there are multiple options (e.g., Google has satellite, terrain, etc.). Each has different arguments to specify the map boundaries.
+[ggmap](https://github.com/dkahle/ggmap) is a mashup of ggplot and online mapping services. There are numerous map sources available to ggmap (e.g., Google, OpenStreetMaps, Stamen). We'll look quickly at Stamen and Google maps. Withing each of those, there are multiple options (e.g., Google has satellite, terrain, etc.). Each has different arguments to specify the map boundaries.
 
 ### Stamen maps
 Create a basic Stamen map (Toner option). Look, a map (with no data)!
 
 ```{r ggmapStamenBase, out.width='100%'}
 # Set west coast boundaries for stamen maps
-wc.bounds.stamen <- c(left = min(wc.long), bottom = min(wc.lat), 
-               right = max(wc.long), top = max(wc.lat))
-# Download stamen map of west coast
+wc.bounds.stamen <- c(left = min(wc.long), bottom = min(wc.lat),
+                      right = max(wc.long), top = max(wc.lat))
+# Download stamen map of west coast; zoom = 6 seems good
 wc.map.stamen.toner <- get_stamenmap(wc.bounds.stamen, zoom = 6, maptype = "toner-lite") %>% 
   ggmap() + xlab("Longitude") + ylab("Latitude") + theme_bw()
+# Display the stamen map
+wc.map.stamen.toner
 ```  
 
 Add our data to the map. Look, a map (with data)!
@@ -124,40 +143,47 @@ Add our data to the map. Look, a map (with data)!
 ```{r ggmapStamenCps}
 # Add layers to map
 wc.stamen1 <- wc.map.stamen.toner + 
-  geom_point(data = locations, aes(long, lat)) +
-  geom_text(data = locations, aes(long, lat, label = name)) + 
-  geom_path(data = cps, aes(long, lat, group = transect, colour = factor(transect)),
-            show.legend = F) +
+  geom_point(data = cps, aes(long, lat, group = transect, colour = factor(transect), size = cps.nasc),
+             show.legend = F) +
+  geom_text(data = locations, aes(long, lat, label = name)) +
   ggtitle("Basic options")
 
 wc.stamen2 <- wc.map.stamen.toner + 
+  geom_point(data = cps, aes(long, lat, group = transect, colour = factor(transect), size = cps.nasc),
+             show.legend = F) +
   geom_point(data = locations, aes(long, lat)) +
   geom_text(data = locations, aes(long, lat, label = name), 
             colour = "red", size = 2, hjust = 0, nudge_x = 0.5, angle = 45) + 
-  geom_path(data = cps, aes(long, lat, group = transect, colour = factor(transect)),
-            show.legend = F) +
   ggtitle("Formatted labels")
 
 wc.stamen3 <- wc.map.stamen.toner + 
+  geom_point(data = cps, aes(long, lat, group = transect, colour = factor(transect), size = cps.nasc),
+             show.legend = F) +
   geom_point(data = locations, aes(long, lat)) +
   geom_text_repel(data = locations, aes(long, lat, label = name), 
-            size = 2, segment.colour = "black", segment.alpha = 0.5) +
-  geom_path(data = cps, aes(long, lat, group = transect, colour = factor(transect)),
-            show.legend = F) +
+                  size = 2, segment.colour = "black", segment.alpha = 0.5) +
   ggtitle("Formatted and repelled lables")
 
 # Combine maps
 wc.grid.stamen <- plot_grid(wc.stamen1, wc.stamen2, wc.stamen3, nrow = 1)
 
 # Save map
-ggsave(wc.grid.stamen, filename = here("Figs/wc_map_stamen_toner.png"), width = 12, height = 7)
+ggsave(wc.grid.stamen, filename = here("Figs/wc_map_stamen_toner.png"), width = 10, height = 7)
 # Print map
 include_graphics(here("Figs/wc_map_stamen_toner.png"))
 ```
 
-## Google maps
+### Google maps
 
 ```{r ggmapGoogleMapsWC,out.width='100%'}
+# Reduce label list
+label.list <- c("Monterey Bay","San Francisco","Cape Flattery","Crescent City",
+                "Newport","Point Conception","Cape Mendocino","Columbia River",
+                "Cape Blanco","Bodega Bay","Westport","Fort Bragg",
+                "Morro Bay","Long Beach","Cape Scott","San Diego")
+
+locations <- filter(locations, name %in% label.list)
+
 # Set west coast boundaries for stamen maps
 wc.bounds.google <- c(mean(wc.long),mean(wc.lat))
 # Download stamen map of west coast
@@ -166,16 +192,26 @@ wc.map.google <- get_map(location = wc.bounds.google, zoom = 4, source = "google
   xlim(wc.long) + ylim(wc.lat)
 
 wc.google1 <- wc.map.google +
- geom_point(data = locations, aes(long, lat), colour = "white") +
-  geom_text(data = locations, aes(long, lat, label = name), 
-            colour = "white", size = 2, hjust = 0, nudge_x = 0.5, angle = 45) +
-  ggtitle("Minor formatting")
+  geom_point(data = cps, aes(long, lat, group = transect, colour = cps.nasc, size = cps.nasc)) +
+  scale_colour_gradientn(colors = rev(rainbow(10))) +
+  geom_point(data = locations, aes(long, lat), colour = "white") +
+  geom_shadowtext(data = locations, aes(long, lat, label = name), 
+                  colour = "white", bg.color = "black", size = 3, 
+                  nudge_x = 0.25, hjust = 0, angle = 45, fontface = "bold.italic") +
+  ggtitle("Shadow text, scale color & size")
 
 wc.google2 <- wc.map.google +
- geom_point(data = locations, aes(long, lat), colour = "white") +
-  geom_text_repel(data = locations, aes(long, lat, label = name), 
-            colour = "white", size = 2) +
-  ggtitle("Repelled labels")
+  geom_point(data = cps, aes(long, lat), colour = "gray50", size = 0.25, alpha = 0.75) +
+  geom_point(data = filter(cps, cps.nasc > 0), 
+             aes(long, lat, group = transect, colour = cps.nasc, size = cps.nasc), alpha = 0.75) +
+  scale_colour_viridis_c(option = "magma") +
+  geom_point(data = locations, aes(long, lat), colour = "white") +
+  # Configure legend guides
+  guides(colour = guide_legend(), size = guide_legend()) +
+  geom_shadowtext(data = locations, aes(long, lat, label = name), 
+                  colour = "white", bg.color = "black", size = 2, 
+                  nudge_x = 0.25, hjust = 0, angle = 45, fontface = "bold.italic") +
+  ggtitle("Viridis colours, grouped legend")
 
 # Arrange plots
 wc.grid.google <- plot_grid(wc.google1, wc.google2, nrow = 1)
@@ -196,7 +232,7 @@ mb.map.google <- get_map(location = mb.bounds.google, zoom = 10,
   xlim(mb.long) + ylim(mb.lat)
 
 mb.google1 <- mb.map.google +
- geom_point(data = filter(locations, name != "Monterey Bay"), aes(long, lat), colour = "white") +
+  geom_point(data = filter(locations, name != "Monterey Bay"), aes(long, lat), colour = "white") +
   geom_text(data = filter(locations, name != "Monterey Bay"), aes(long, lat, label = name), 
             colour = "white", size = 4, vjust = 0, nudge_y = 0.01)
 # Save map
@@ -205,43 +241,65 @@ ggsave(filename = here("Figs/mb_map_google.png"), width = 7, height = 7)
 include_graphics(here("Figs/mb_map_google.png"))
 ```  
 
-# rnaturalearth  
-
+# "Roll-your-own" mapping options
+## rnaturalearth  
 [rnaturalearth](https://www.jessesadler.com/post/gis-with-r-intro/?utm_content=buffer072ae&utm_medium=social&utm_source=twitter.com&utm_campaign=buffer) for shoreline and country files. Below is a comparison of the medium- and large-scale country datasets.
 
 ```{r rnaturalearth}
 # Import NaturalEarth coastlines and countries
-coast_sf <- ne_coastline(scale = "medium", returnclass = "sf")
-coast_sf_lg <- ne_coastline(scale = "large", returnclass = "sf")
-countries_sf <- ne_countries(scale = "medium", returnclass = "sf")
+coast_sf        <- ne_coastline(scale = "medium", returnclass = "sf")
+coast_sf_lg     <- ne_coastline(scale = "large", returnclass = "sf")
+countries_sf    <- ne_countries(scale = "medium", returnclass = "sf")
 countries_sf_lg <- ne_countries(scale = "large", returnclass = "sf")
 
+# Display countries
+plot(countries_sf)
+
 # View unique regions
-# sort(unique(countries_sf$region_wb))
-# sort(unique(countries_sf$subregion))
+sort(unique(countries_sf$region_wb))
+sort(unique(countries_sf$subregion))
 
 # Select only certain regions to speed plotting
-na_sf <- filter(countries_sf, subregion %in% c("Northern America","Central America")) 
+na_sf    <- filter(countries_sf, subregion %in% c("Northern America","Central America")) 
 na_sf_lg <- filter(countries_sf_lg, subregion %in% c("Northern America","Central America")) 
 
 # Create West Coast map (medium scale)
-wc.ne <- ggplot() + geom_sf(data = na_sf) +
+wc.ne <- ggplot() + 
+  geom_sf(data = na_sf) +
   geom_point(data = locations, aes(long, lat)) +
-  geom_text_repel(data = locations, aes(long, lat, label = name), 
-                  size = 2, segment.colour = "black", segment.alpha = 0.5) +
+  geom_text(data = locations, aes(long, lat, label = name), size = 4) +
   scale_x_continuous(name = "Longitude", limits = wc.long) + 
   scale_y_continuous(name = "Latitude", limits = wc.lat) +
-  theme_bw() + coord_sf() +
-  ggtitle("Medium scale")
+  theme_bw() + 
+  coord_sf(xlim = c(-123.5,-121.5), ylim = c(36.5,38.5)) +
+  theme(axis.text.y = element_text(angle = 90, hjust = 0.5),
+          legend.position =  c(0,0),
+          legend.justification = c(0,0),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          panel.background = element_rect(fill = alpha("lightblue", 0.5)),
+          plot.title = element_text(hjust = 0.5),
+          panel.grid.major = element_line(color = "white")) +
+  ggtitle("Medium scale") 
 
-# Create West Coast map (large scale)
-wc.ne.lg <- ggplot() + geom_sf(data = na_sf_lg) +
+# Create West Coast map (large scale); and with shadowtext labels
+wc.ne.lg <- ggplot() + 
+  geom_sf(data = na_sf_lg) +
   geom_point(data = locations, aes(long, lat)) +
-  geom_text_repel(data = locations, aes(long, lat, label = name), 
-                  size = 2, segment.colour = "black", segment.alpha = 0.5) +
+  geom_shadowtext(data = locations, aes(long, lat, label = name), colour = "white",
+                  size = 4, bg.colour = "black") +
   scale_x_continuous(name = "Longitude", limits = wc.long) + 
   scale_y_continuous(name = "Latitude", limits = wc.lat) +
-  theme_bw() + coord_sf() +
+  theme_bw() + 
+  coord_sf(xlim = c(-123.5,-121.5), ylim = c(36.5,38.5)) +
+  theme(axis.text.y = element_text(angle = 90, hjust = 0.5),
+          legend.position =  c(0,0),
+          legend.justification = c(0,0),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          panel.background = element_rect(fill = alpha("lightblue", 0.5)),
+          plot.title = element_text(hjust = 0.5),
+          panel.grid.major = element_line(color = "white")) +
   ggtitle("Large scale")
 
 # Create map grid
@@ -313,7 +371,6 @@ ggplot(ned_df, aes(long,lat,fill = elev)) + geom_raster() +
   theme_bw()
 ```
 
-
 # Other potentially useful packages
 ## Movement analysis
 [A collection of movement analysis packages](https://gist.github.com/mdsumner/0a3cb0e58bf9d37b782943ac269e1eff)
@@ -326,3 +383,7 @@ ggplot(ned_df, aes(long,lat,fill = elev)) + geom_raster() +
 [GIS with R: an introduction](https://github.com/Pakillo/GISwithR) by Francisco Rodriguez-Sanchez (Pakillo)
 
 [An Intro to GIS with R](https://www.jessesadler.com/post/gis-with-r-intro/) by Jess Sadler (covers `sp`, `sf`, and `rnaturalearth`, among other things).
+
+[Geocomputation with R](https://geocompr.robinlovelace.net/)
+
+[r-sptatial Blog](https://www.r-spatial.org/)
