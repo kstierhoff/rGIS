@@ -64,6 +64,10 @@ install.packages("rnaturalearthhires",
 }
 library(rnaturalearthhires)
 
+# Load the CMOCEAN color scales, just in case (thanks Roy)!
+load(here("Code/cmocean_palettes.Rdata"))
+ocean.pal <- colors
+
 # Create output directories if missing
 dir.create(here("Figs"))
 dir.create(here("Output"))
