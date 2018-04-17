@@ -327,8 +327,8 @@ Leaflet is an open-source JavaScript library for creating interactive maps. The 
 
 ```{r Leaflet}
 # Select tile to use for Leaflet map
-# Some good options include CartoDB.Positron, Stamen.Terrain, Esri.WorldImagery
-leaflet.tile <- "Stamen.Terrain" 
+# Some good options include CartoDB.Positron, Stamen.Terrain, Esri.WorldImagery, and Esri.OceanBasemap
+leaflet.tile <- "Esri.OceanBasemap" 
 
 # A very basic Leaflet map
 leaflet() %>% 
@@ -366,14 +366,20 @@ We want (need?) to load the haul locations and convert to simple feature before 
 ```{r ConvertSomeDataFrames}
 load(here("Data/haul_df.Rdata"))
 
-# Convert to sf; CRS =4326 (WGS84)
+# Convert haul locations to sf; CRS = 4326 (WGS84)
 haul_sf <- st_as_sf(haul, coords = c("long","lat"), crs = 4326) %>% 
   mutate(long = map_dbl(geometry, ~st_centroid(.x)[[1]]),
          lat  = map_dbl(geometry, ~st_centroid(.x)[[2]]))
 
+# Convert acoustic transects to sf; CRS = 4326 (WGS84)
+tx_sf <- st_as_sf(cps, coords = c("long","lat"), crs = 4326) %>% 
+  group_by(transect) %>% 
+  summarise(do_union = F) %>% 
+  st_cast("LINESTRING")
+  
 # We'll also convert our locations to sf
 locations <- locations %>% 
-  st_as_sf(coords = c("long","lat"), crs = 4269) %>% 
+  st_as_sf(coords = c("long","lat"), crs = 4326) %>% 
   mutate(
     long = map_dbl(geometry, ~st_centroid(.x)[[1]]),
     lat  = map_dbl(geometry, ~st_centroid(.x)[[2]]))
@@ -463,6 +469,7 @@ leaflet() %>%
   addPolygons(data = ca_waters, weight = 2, fillColor = "transparent") %>% 
   addPolygons(data = ca_mpas, color = "gray50", weight = 2, fillColor =  ~factpal(MPA), fillOpacity = 1,
               label = ~htmlEscape(MPA)) %>% 
+  addPolylines(data = tx_sf, color = "#000414", weight = 1, label = "Acoustic Transects") %>% 
   addCircleMarkers(data = haul.out, radius = 3, color = "gray50", stroke = FALSE, fillOpacity = 0.75,
                    label = ~htmlEscape(key)) %>% 
   addCircleMarkers(data = haul.ca,  radius = 5, color = "red", stroke = FALSE, fillOpacity = 0.75,
